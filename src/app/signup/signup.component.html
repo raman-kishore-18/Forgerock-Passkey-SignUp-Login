@@ -1,0 +1,49 @@
+<div class="container-fluid bg-light vh-100">
+    <div class="d-flex flex-column justify-content-center align-items-center vh-100">
+        <h1 class="text-center">Passkey Sign Up</h1>
+        <form (ngSubmit)="onSignUp()" class="p-3">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" id="username" [(ngModel)]="formData.username" name="username" class="form-control"
+                    required />
+            </div>
+            <div class="mb-3">
+                <label for="firstName" class="form-label">First Name</label>
+                <input type="text" id="firstName" [(ngModel)]="formData.givenName" name="firstName" class="form-control"
+                    required />
+            </div>
+            <div class="mb-3">
+                <label for="lastName" class="form-label">Last Name</label>
+                <input type="text" id="lastName" [(ngModel)]="formData.lastName" name="lastName" class="form-control"
+                    required />
+            </div>
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" id="email" [(ngModel)]="formData.email" name="email" class="form-control"
+                    required />
+            </div>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="specialOffers" [(ngModel)]="formData.promotions"
+                    name="specialOffers" />
+                <label class="form-check-label" for="specialOffers">
+                    Send me special offers and services
+                </label>
+            </div>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="newsUpdates" [(ngModel)]="formData.updates"
+                    name="newsUpdates" />
+                <label class="form-check-label" for="newsUpdates">
+                    Send me news and updates
+                </label>
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="terms" [(ngModel)]="formData.terms" name="terms"
+                    required />
+                <label class="form-check-label" for="terms">
+                    I agree to the terms and conditions
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3">Sign Up</button>
+        </form>
+    </div>
+</div>
