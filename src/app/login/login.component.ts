@@ -79,8 +79,8 @@ export class LoginComponent {
       const response = assertion.response as AuthenticatorAssertionResponse;
 
       const clientDataJSON = new Uint8Array(response.clientDataJSON);
-      const authenticatorData = new Uint8Array(response.authenticatorData);
-      const signature = new Uint8Array(response.signature);
+      const authenticatorData = new Int8Array(response.authenticatorData);
+      const signature = new Int8Array(response.signature);
       const rawId = new Uint8Array(assertion.rawId);
       const userHandle = new Uint8Array(response.userHandle || []);
 

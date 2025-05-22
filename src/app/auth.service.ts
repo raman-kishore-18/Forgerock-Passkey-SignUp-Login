@@ -51,7 +51,7 @@ export class AuthService {
     }
   }
 
-  checkSession(): Observable<boolean> {
+  checkSession(): Observable<{isActive: boolean, session?: any}> {
     const url = `${this.baseUrl}/json/realms/root/realms/alpha/sessions?_action=getSessionInfo`;
 
     const headers = new HttpHeaders({
@@ -62,11 +62,31 @@ export class AuthService {
     return this.http.post<any>(url, {}, { headers, withCredentials: true }).pipe(
       map((response) => {
         console.log('✅ Session info:', response);
-        return true;
+        return {isActive : true, session: response};
       }),
       catchError((error) => {
         console.warn('⛔ Session invalid or not logged in', error);
-        return of(false);
+        return of({isActive: false});
+      })
+    );
+  }
+
+  getUserInfo(userId: string): Observable<any> {
+    const url = `${this.baseUrl}/json/realms/root/realms/alpha/users/${userId}`;
+
+    const headers = new HttpHeaders({
+      'Accept-API-Version': 'resource=2.1',
+      'Content-Type': 'application/json',
+    });
+
+    return this.http.get<any>(url, { headers, withCredentials: true }).pipe(
+      map((response) => {
+        console.log('✅ User info:', response);
+        return response;
+      }),
+      catchError((error) => {
+        console.warn('⛔ Error fetching user info', error);
+        return of(null);
       })
     );
   }

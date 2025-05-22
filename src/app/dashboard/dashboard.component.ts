@@ -9,12 +9,19 @@ import { Router } from '@angular/router';
   styleUrl: './dashboard.component.css'
 })
 export class DashboardComponent {
+  username: string = '';
+
   constructor(private authService: AuthService, private router: Router) { }
   
   ngOnInit() {
     this.authService.checkSession().subscribe((session) => {
-      if (session) {
+      if (session.isActive) {
         console.log('User already logged in. Redirecting to dashboard.');
+        this.authService.isLoggedIn = true;
+        this.authService.getUserInfo(session.session?.username).subscribe((userInfo) => {
+          console.log('User info:', userInfo);
+          this.username = userInfo?.username || '';
+        })
       } else {
         console.log('User not logged in. Redirecting to login.');
         this.router.navigate(['home']);
