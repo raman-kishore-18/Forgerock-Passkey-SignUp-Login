@@ -1,0 +1,15 @@
+{
+  "/api": {
+    "target": "https://openam-informa-trial.forgeblocks.com",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "headers": {
+      "X-Forwarded-Host": "localhost:4200",
+      "X-Forwarded-Proto": "http"
+    },
+    "pathRewrite": {
+      "^/api": ""
+    }
+  }
+}

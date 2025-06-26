@@ -10,6 +10,8 @@ import { catchError, map, Observable, of } from 'rxjs';
 export class AuthService {
   isLoggedIn = false;
   private baseUrl = 'https://openam-informa-trial.forgeblocks.com/am';
+  //private baseUrl = '/api/am';
+  //private sdkBaseUrl = `${window.location.origin}/api/am`;
 
   constructor(private http: HttpClient) {
     Config.set({
@@ -42,9 +44,9 @@ export class AuthService {
     }
   }
 
-  async submitStep(step: FRStep): Promise<FRStep | undefined> {
+  async submitStep(step: FRStep): Promise<FRStep | undefined | FRLoginSuccess | FRLoginFailure> {
     const result = await FRAuth.next(step);
-    if (result instanceof FRStep) {
+    if (result instanceof FRStep || result instanceof FRLoginSuccess) {
       return result;
     } else {
       return undefined;
@@ -56,7 +58,7 @@ export class AuthService {
 
     const headers = new HttpHeaders({
       'Accept-API-Version': 'resource=2.1',
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     });
 
     return this.http.post<any>(url, {}, { headers, withCredentials: true }).pipe(

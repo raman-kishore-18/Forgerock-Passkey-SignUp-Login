@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { AuthService } from '../auth.service';
 import { FormsModule } from '@angular/forms';
-import { CallbackType, FRStep } from '@forgerock/javascript-sdk';
+import { CallbackType, FRLoginSuccess, FRStep, PKCE, SessionManager } from '@forgerock/javascript-sdk';
 import { Router } from '@angular/router';
 
 @Component({
@@ -31,88 +31,109 @@ export class LoginComponent {
   }
 
   async onSignIn() {
-  if (!this.step) {
-    this.step = await this.authService.startJourney('PassKeyLogin2');
-  }
-
-  // Fill username
-  const callbacks = this.step.callbacks;
-  callbacks.forEach((cb) => {
-    const type = cb.getType();
-    if (type === CallbackType.NameCallback) {
-      cb.setInputValue(this.formData.username);
+    if (!this.step) {
+      this.step = await this.authService.startJourney('PassKeyLogin2');
     }
-  });
 
-  const nextStep = await this.authService.submitStep(this.step);
+    // Fill username
+    const callbacks = this.step.callbacks;
+    callbacks.forEach((cb) => {
+      const type = cb.getType();
+      if (type === CallbackType.NameCallback) {
+        cb.setInputValue(this.formData.username);
+      }
+    });
 
-  if (!nextStep) {
-    return;
-  }
+    const nextStep = await this.authService.submitStep(this.step);
 
-  const nextCallbacks = nextStep.callbacks;
-  const textOutputCb = nextCallbacks.find(cb => cb.getType() === CallbackType.TextOutputCallback);
-  const hiddenCb = nextCallbacks.find(cb => cb.getType() === CallbackType.HiddenValueCallback);
-
-  if (textOutputCb && hiddenCb) {
-    const jsCode = textOutputCb.getOutputByName<string>('message', '');
-
-    // Extract WebAuthn publicKey options from the JS string
-    const optionsMatch = jsCode.match(/options\s*=\s*({[\s\S]*?});/);
-    if (!optionsMatch) {
-      console.error('PublicKey options not found in JS');
+    if (!nextStep) {
       return;
     }
 
-    try {
-      // Reconstruct the publicKey object by evaluating cleaned code
-      const fixed = optionsMatch[1]
-        .replace(/new Int8Array\((\[.*?\])\)\.buffer/g, (_, arr) => {
-          const bytes = JSON.parse(arr);
-          return `new Uint8Array([${bytes.join(',')}]).buffer`;
-        });
+    if (nextStep instanceof FRStep) {
 
-      const getPublicKey = new Function(`return ${fixed}`);
-      const publicKey = getPublicKey();
+      const nextCallbacks = nextStep.callbacks;
+      const textOutputCb = nextCallbacks.find(cb => cb.getType() === CallbackType.TextOutputCallback);
+      const hiddenCb = nextCallbacks.find(cb => cb.getType() === CallbackType.HiddenValueCallback);
 
-      const assertion = await navigator.credentials.get({ publicKey }) as PublicKeyCredential;
-      const response = assertion.response as AuthenticatorAssertionResponse;
+      if (textOutputCb && hiddenCb) {
+        const jsCode = textOutputCb.getOutputByName<string>('message', '');
 
-      const clientDataJSON = new Uint8Array(response.clientDataJSON);
-      const authenticatorData = new Int8Array(response.authenticatorData);
-      const signature = new Int8Array(response.signature);
-      const rawId = new Uint8Array(assertion.rawId);
-      const userHandle = new Uint8Array(response.userHandle || []);
+        // Extract WebAuthn publicKey options from the JS string
+        const optionsMatch = jsCode.match(/options\s*=\s*({[\s\S]*?});/);
+        if (!optionsMatch) {
+          console.error('PublicKey options not found in JS');
+          return;
+        }
 
-      const clientDataStr = new TextDecoder().decode(clientDataJSON);
-      const userHandleStr = new TextDecoder().decode(userHandle);
-      const finalValue =
-        clientDataStr +
-        '::' +
-        authenticatorData.toString() +
-        '::' +
-        signature.toString() +
-        '::' +
-        assertion.id;
+        try {
+          // Reconstruct the publicKey object by evaluating cleaned code
+          const fixed = optionsMatch[1]
+            .replace(/new Int8Array\((\[.*?\])\)\.buffer/g, (_, arr) => {
+              const bytes = JSON.parse(arr);
+              return `new Uint8Array([${bytes.join(',')}]).buffer`;
+            });
 
-      hiddenCb.setInputValue(finalValue);
+          const getPublicKey = new Function(`return ${fixed}`);
+          const publicKey = getPublicKey();
 
-      const finalStep = await this.authService.submitStep(nextStep);
+          const assertion = await navigator.credentials.get({ publicKey }) as PublicKeyCredential;
+          const response = assertion.response as AuthenticatorAssertionResponse;
 
-      if (!finalStep) {
-        console.log('User successfully logged in with passkey!');
-        this.checkSession();
+          const clientDataJSON = new Uint8Array(response.clientDataJSON);
+          const authenticatorData = new Int8Array(response.authenticatorData);
+          const signature = new Int8Array(response.signature);
+          const rawId = new Uint8Array(assertion.rawId);
+          const userHandle = new Uint8Array(response.userHandle || []);
+
+          const clientDataStr = new TextDecoder().decode(clientDataJSON);
+          const userHandleStr = new TextDecoder().decode(userHandle);
+          const finalValue =
+            clientDataStr +
+            '::' +
+            authenticatorData.toString() +
+            '::' +
+            signature.toString() +
+            '::' +
+            assertion.id;
+
+          hiddenCb.setInputValue(finalValue);
+
+          const finalStep = await this.authService.submitStep(nextStep);
+
+          if (finalStep instanceof FRLoginSuccess) {
+            console.log('User successfully logged in with passkey!');
+            sessionStorage.setItem('sessionToken', finalStep.getSessionToken() ?? '');
+            const redirectUri = 'http://localhost:4200/callback';
+            const clientId = 'demo-mfe-sso';
+            const codeVerifier = PKCE.createVerifier();
+            sessionStorage.setItem('code_verifier', codeVerifier);
+            const codeChallenge = await PKCE.createChallenge(codeVerifier);
+
+            const authorizeUrl = `https://openam-informa-trial.forgeblocks.com/am/oauth2/alpha/authorize?` +
+              `response_type=code` +
+              `&client_id=${clientId}` +
+              `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+              `&scope=openid` +
+              `&code_challenge=${codeChallenge}` +
+              `&code_challenge_method=S256`;
+
+            window.location.href = authorizeUrl;
+            //window.open(authorizeUrl);
+            //this.checkSession();
+            this.router.navigate(['dashboard']);
+          } else {
+            console.log('More steps required after passkey auth:', finalStep);
+          }
+        } catch (err) {
+          console.error('WebAuthn login failed:', err);
+          hiddenCb.setInputValue(`ERROR::${err}`);
+          await this.authService.submitStep(nextStep);
+        }
       } else {
-        console.log('More steps required after passkey auth:', finalStep);
+        console.warn('Next step does not contain WebAuthn callbacks.');
       }
-    } catch (err) {
-      console.error('WebAuthn login failed:', err);
-      hiddenCb.setInputValue(`ERROR::${err}`);
-      await this.authService.submitStep(nextStep);
     }
-  } else {
-    console.warn('Next step does not contain WebAuthn callbacks.');
-  }
   }
 
   async logout() {

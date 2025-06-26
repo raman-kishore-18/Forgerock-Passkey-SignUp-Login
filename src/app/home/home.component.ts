@@ -13,9 +13,9 @@ export class HomeComponent {
 
   ngOnInit() {
     this.authService.checkSession().subscribe((session) => {
-      if (session) {
+      if (session.isActive) {
         console.log('User already logged in. Redirecting to dashboard.');
-        this.router.navigate(['home']);
+        this.router.navigate(['dashboard']);
       } else {
         console.log('User not logged in. Redirecting to login.');
       }
@@ -28,5 +28,9 @@ export class HomeComponent {
 
   goToSignUp() {
     this.router.navigate(['signup']);
+  }
+
+  goToSignUpWithEmail() {
+    this.router.navigate(['signupwemail']);
   }
 }

@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { CallbackType, FRStep } from '@forgerock/javascript-sdk';
+import { CallbackType, FRLoginSuccess, FRStep } from '@forgerock/javascript-sdk';
 import { AuthService } from '../auth.service';
 import { Router } from '@angular/router';
 
@@ -24,99 +24,103 @@ export class SignupComponent {
   constructor(private authService: AuthService, private router: Router) { }
 
   async onSignUp() {
-  if (!this.step) {
-    this.step = await this.authService.startJourney('PassKeyLogin');
-  }
-
-  // Fill the form-related fields
-  const callbacks = this.step.callbacks;
-
-  callbacks.forEach((cb) => {
-    const type = cb.getType();
-    switch (type) {
-      case CallbackType.NameCallback:
-        cb.setInputValue(this.formData.username);
-        break;
-      case CallbackType.StringAttributeInputCallback:
-        const attrName = cb.getOutputByName<string>('name', '');
-        switch (attrName) {
-          case 'givenName':
-            cb.setInputValue(this.formData.givenName);
-            break;
-          case 'sn':
-            cb.setInputValue(this.formData.lastName);
-            break;
-          case 'mail':
-            cb.setInputValue(this.formData.email);
-            break;
-        }
-        break;
-      case CallbackType.TermsAndConditionsCallback:  
-        cb.setInputValue('true');
-        break;
+    if (!this.step) {
+      //this.step = await this.authService.startJourney('Copy of PassKeyLogin');
+      this.step = await this.authService.startJourney('PassKeyLogin');
     }
-  });
 
-  const nextStep = await this.authService.submitStep(this.step);
+    // Fill the form-related fields
+    const callbacks = this.step.callbacks;
 
-  if (!nextStep) {
-    return;
-  }
+    callbacks.forEach((cb) => {
+      const type = cb.getType();
+      switch (type) {
+        case CallbackType.NameCallback:
+          cb.setInputValue(this.formData.username);
+          break;
+        case CallbackType.StringAttributeInputCallback:
+          const attrName = cb.getOutputByName<string>('name', '');
+          switch (attrName) {
+            case 'givenName':
+              cb.setInputValue(this.formData.givenName);
+              break;
+            case 'sn':
+              cb.setInputValue(this.formData.lastName);
+              break;
+            case 'mail':
+              cb.setInputValue(this.formData.email);
+              break;
+          }
+          break;
+        case CallbackType.TermsAndConditionsCallback:
+          cb.setInputValue('true');
+          break;
+      }
+    });
 
-  const nextCallbacks = nextStep.callbacks;
+    const nextStep = await this.authService.submitStep(this.step);
 
-  // Look for WebAuthn-related callbacks
-  const textOutputCb = nextCallbacks.find(cb => cb.getType() === CallbackType.TextOutputCallback);
-  const hiddenCb = nextCallbacks.find(cb => cb.getType() === CallbackType.HiddenValueCallback);
-
-  if (textOutputCb && hiddenCb) {
-    const jsCode = textOutputCb.getOutputByName<string>('message', '');
-
-    // Extract publicKey from JS
-    const publicKeyMatch = jsCode.match(/var publicKey = ({[\s\S]*?});/);
-    if (!publicKeyMatch) {
-      console.error('PublicKey object not found in JS');
+    if (!nextStep) {
       return;
     }
+    if (nextStep instanceof FRStep) {
 
-    try {
-      const func = new Function(`${publicKeyMatch[0]}; return publicKey;`);
-      const publicKey = func();
+      const nextCallbacks = nextStep.callbacks;
 
-      const credential = await navigator.credentials.create({ publicKey }) as PublicKeyCredential;
+      // Look for WebAuthn-related callbacks
+      const textOutputCb = nextCallbacks.find(cb => cb.getType() === CallbackType.TextOutputCallback);
+      const hiddenCb = nextCallbacks.find(cb => cb.getType() === CallbackType.HiddenValueCallback);
 
-      const attestationObject = new Int8Array((credential.response as AuthenticatorAttestationResponse).attestationObject);
-      const clientDataJSON = new Uint8Array((credential.response as AuthenticatorAttestationResponse).clientDataJSON);
-      const rawId = credential.id;
+      if (textOutputCb && hiddenCb) {
+        const jsCode = textOutputCb.getOutputByName<string>('message', '');
 
-      // Convert clientDataJSON to plain string (NOT base64)
-      const clientDataString = new TextDecoder().decode(clientDataJSON);
+        // Extract publicKey from JS
+        const publicKeyMatch = jsCode.match(/var publicKey = ({[\s\S]*?});/);
+        if (!publicKeyMatch) {
+          console.error('PublicKey object not found in JS');
+          return;
+        }
 
-      // Convert attestationObject to comma-separated string
-      const keyDataString = Array.from(attestationObject).toString();
+        try {
+          const func = new Function(`${publicKeyMatch[0]}; return publicKey;`);
+          const publicKey = func();
 
-      // Final value in format: clientDataJSON :: attestationObject :: rawId
-      const finalValue = `${clientDataString}::${keyDataString}::${rawId}`;
+          const credential = await navigator.credentials.create({ publicKey }) as PublicKeyCredential;
 
-      hiddenCb.setInputValue(finalValue);
+          const attestationObject = new Int8Array((credential.response as AuthenticatorAttestationResponse).attestationObject);
+          const clientDataJSON = new Uint8Array((credential.response as AuthenticatorAttestationResponse).clientDataJSON);
+          const rawId = credential.id;
 
-      const finalStep = await this.authService.submitStep(nextStep);
+          // Convert clientDataJSON to plain string (NOT base64)
+          const clientDataString = new TextDecoder().decode(clientDataJSON);
 
-      if (!finalStep) {
-        console.log('WebAuthn registration successful!');
-        this.checkSession();
-      } else {
-        console.log('More steps required:', finalStep);
+          // Convert attestationObject to comma-separated string
+          const keyDataString = Array.from(attestationObject).toString();
+
+          // Final value in format: clientDataJSON :: attestationObject :: rawId
+          const finalValue = `${clientDataString}::${keyDataString}::${rawId}`;
+
+          hiddenCb.setInputValue(finalValue);
+
+          const finalStep = await this.authService.submitStep(nextStep);
+
+          if (finalStep instanceof FRLoginSuccess) {
+            console.log('WebAuthn registration successful!');
+            this.router.navigate(['dashboard']);
+            //this.checkSession();
+          } else {
+            console.log('More steps required:', finalStep);
+          }
+        } catch (err) {
+          console.error('WebAuthn registration failed:', err);
+          hiddenCb.setInputValue(`ERROR::${err}`);
+          await this.authService.submitStep(nextStep);
+        }
       }
-    } catch (err) {
-      console.error('WebAuthn registration failed:', err);
-      hiddenCb.setInputValue(`ERROR::${err}`);
-      await this.authService.submitStep(nextStep);
+      else {
+        console.warn('Next step does not contain WebAuthn callbacks.');
+      }
     }
-  }
-  else {
-      console.warn('Next step does not contain WebAuthn callbacks.');
-  }
   }
 
   async logout() {
@@ -130,7 +134,7 @@ export class SignupComponent {
 
   checkSession() {
     this.authService.checkSession().subscribe((session) => {
-      if (session) {
+      if (session.isActive) {
         console.log('User already logged in. Redirecting to dashboard.');
         this.router.navigate(['dashboard']);
       } else {

@@ -9,7 +9,7 @@ import { Router } from '@angular/router';
   styleUrl: './dashboard.component.css'
 })
 export class DashboardComponent {
-  username: string = '';
+  name: string = '';
 
   constructor(private authService: AuthService, private router: Router) { }
   
@@ -20,7 +20,7 @@ export class DashboardComponent {
         this.authService.isLoggedIn = true;
         this.authService.getUserInfo(session.session?.username).subscribe((userInfo) => {
           console.log('User info:', userInfo);
-          this.username = userInfo?.username || '';
+          this.name = userInfo?.cn[0] || '';
         })
       } else {
         console.log('User not logged in. Redirecting to login.');
