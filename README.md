@@ -20,6 +20,10 @@ ng serve
 
 Once the server is running, open your browser and navigate to `http://localhost:4202/`. The application will automatically reload whenever you modify any of the source files.
 
+## WebAuth 
+
+Change the client id in login and oauth component to the client that is used.
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
