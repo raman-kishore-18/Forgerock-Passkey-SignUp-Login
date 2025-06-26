@@ -104,7 +104,7 @@ export class LoginComponent {
           if (finalStep instanceof FRLoginSuccess) {
             console.log('User successfully logged in with passkey!');
             sessionStorage.setItem('sessionToken', finalStep.getSessionToken() ?? '');
-            const redirectUri = 'http://localhost:4200/callback';
+            const redirectUri = 'http://localhost:4202/callback';
             const clientId = 'demo-mfe-sso';
             const codeVerifier = PKCE.createVerifier();
             sessionStorage.setItem('code_verifier', codeVerifier);
